@@ -13,19 +13,34 @@ if (!command) {
 // receives a string from require('electron') instead of the Electron API.
 delete process.env.ELECTRON_RUN_AS_NODE
 
-// Auto-heal: verify Electron binary is installed before running commands
+// Auto-heal: ensure Electron binary is installed and registered
 try {
   const electronPkgDir = path.dirname(require.resolve('electron/package.json'))
+  const installScript = path.join(electronPkgDir, 'install.js')
   const pathTxt = path.join(electronPkgDir, 'path.txt')
-  if (!fs.existsSync(pathTxt)) {
-    console.log('Tempo: Electron binary missing. Running Electron installer...')
-    const installScript = path.join(electronPkgDir, 'install.js')
+  const platformExe =
+    process.platform === 'win32'
+      ? 'electron.exe'
+      : process.platform === 'darwin'
+        ? 'Electron.app/Contents/MacOS/Electron'
+        : 'electron'
+  const binaryPath = path.join(electronPkgDir, 'dist', platformExe)
+
+  if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
+    console.log('Tempo: Electron binary missing. Downloading and installing Electron binary...')
     if (fs.existsSync(installScript)) {
       execFileSync(process.execPath, [installScript], { stdio: 'inherit' })
     }
   }
-} catch {
-  // If electron cannot be resolved yet, continue and let the command report its error
+
+  if (fs.existsSync(binaryPath)) {
+    process.env.ELECTRON_EXEC_PATH = binaryPath
+    if (!fs.existsSync(pathTxt)) {
+      fs.writeFileSync(pathTxt, platformExe, 'utf-8')
+    }
+  }
+} catch (error) {
+  console.warn('Tempo: Electron auto-heal check encountered an issue:', error.message)
 }
 
 const isWindows = process.platform === 'win32'
