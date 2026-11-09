@@ -11,7 +11,7 @@
     "start": "node scripts/run-electron-command.cjs electron-vite preview",
     "dev": "node scripts/run-electron-command.cjs electron-vite dev",
     "build": "node scripts/run-electron-command.cjs electron-vite build",
-    "postinstall": "node scripts/ensure-electron.cjs && electron-builder install-app-deps",
+    "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && node scripts/run-electron-command.cjs electron-builder --dir",
     "build:win": "npm run build && node scripts/run-electron-command.cjs electron-builder --win",
     "build:mac": "npm run build && node scripts/run-electron-command.cjs electron-builder --mac",

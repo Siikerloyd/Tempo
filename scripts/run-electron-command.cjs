@@ -1,6 +1,6 @@
 const fs = require('node:fs')
 const path = require('node:path')
-const { spawn, execFileSync } = require('node:child_process')
+const { spawn } = require('node:child_process')
 
 const [command, ...args] = process.argv.slice(2)
 
@@ -13,11 +13,10 @@ if (!command) {
 // receives a string from require('electron') instead of the Electron API.
 delete process.env.ELECTRON_RUN_AS_NODE
 
-// Auto-heal: ensure Electron binary is installed and registered
+// Set ELECTRON_EXEC_PATH so electron-vite always finds the binary directly,
+// bypassing its path.txt lookup entirely.
 try {
   const electronPkgDir = path.dirname(require.resolve('electron/package.json'))
-  const installScript = path.join(electronPkgDir, 'install.js')
-  const pathTxt = path.join(electronPkgDir, 'path.txt')
   const platformExe =
     process.platform === 'win32'
       ? 'electron.exe'
@@ -25,28 +24,11 @@ try {
         ? 'Electron.app/Contents/MacOS/Electron'
         : 'electron'
   const binaryPath = path.join(electronPkgDir, 'dist', platformExe)
-
-  if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
-    console.log('Tempo: Installing Electron binary...')
-    if (fs.existsSync(installScript)) {
-      const cleanEnv = { ...process.env }
-      delete cleanEnv.ELECTRON_RUN_AS_NODE
-      execFileSync(process.execPath, [installScript], {
-        cwd: electronPkgDir,
-        stdio: 'inherit',
-        env: cleanEnv
-      })
-    }
-  }
-
   if (fs.existsSync(binaryPath)) {
     process.env.ELECTRON_EXEC_PATH = binaryPath
-    if (!fs.existsSync(pathTxt)) {
-      fs.writeFileSync(pathTxt, platformExe, 'utf-8')
-    }
   }
-} catch (error) {
-  console.warn('Tempo: Could not auto-install Electron binary:', error.message)
+} catch {
+  // electron not resolvable yet - let the command fail naturally
 }
 
 const isWindows = process.platform === 'win32'
