@@ -17,7 +17,13 @@ try {
   if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
     console.log('Tempo: Installing Electron binary...')
     if (fs.existsSync(installScript)) {
-      execFileSync(process.execPath, [installScript], { stdio: 'inherit' })
+      const cleanEnv = { ...process.env }
+      delete cleanEnv.ELECTRON_RUN_AS_NODE
+      execFileSync(process.execPath, [installScript], {
+        cwd: electronPkgDir,
+        stdio: 'inherit',
+        env: cleanEnv
+      })
     }
   }
 

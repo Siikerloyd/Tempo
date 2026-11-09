@@ -43,7 +43,9 @@
     "vite": "^7.0.5"
   },
   "allowScripts": {
-    "electron@37.10.3": true
+    "electron": true,
+    "@tailwindcss/oxide": true,
+    "esbuild": true
   },
   "pnpm": {
     "onlyBuiltDependencies": [

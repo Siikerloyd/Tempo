@@ -27,9 +27,15 @@ try {
   const binaryPath = path.join(electronPkgDir, 'dist', platformExe)
 
   if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
-    console.log('Tempo: Electron binary missing. Downloading and installing Electron binary...')
+    console.log('Tempo: Installing Electron binary...')
     if (fs.existsSync(installScript)) {
-      execFileSync(process.execPath, [installScript], { stdio: 'inherit' })
+      const cleanEnv = { ...process.env }
+      delete cleanEnv.ELECTRON_RUN_AS_NODE
+      execFileSync(process.execPath, [installScript], {
+        cwd: electronPkgDir,
+        stdio: 'inherit',
+        env: cleanEnv
+      })
     }
   }
 
@@ -40,7 +46,7 @@ try {
     }
   }
 } catch (error) {
-  console.warn('Tempo: Electron auto-heal check encountered an issue:', error.message)
+  console.warn('Tempo: Could not auto-install Electron binary:', error.message)
 }
 
 const isWindows = process.platform === 'win32'
