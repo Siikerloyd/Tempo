@@ -1,5 +1,6 @@
 # dependencies
 node_modules
+package-lock.json
 
 # electron-vite / electron-builder output
 out
@@ -28,6 +29,7 @@ coverage
 
 # editors
 .idea
+.vscode
 *.swp
 *.swo
 
@@ -36,3 +38,7 @@ coverage
 Thumbs.db
 ehthumbs.db
 Desktop.ini
+
+# project-specific
+mdskills
+scripts/create-icon.js

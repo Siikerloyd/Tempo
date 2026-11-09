@@ -48,18 +48,29 @@
 
 /* ===== Custom Properties ===== */
 :root {
-  --color-bg: 15, 15, 35;
-  --color-card: 20, 20, 45;
-  --color-card-border: 255 255 255 / 0.06;
-  --color-active: 52, 211, 127;
-  --color-active-glow: 52, 211, 127 / 0.4;
-  --color-alarm: 244, 114, 114;
-  --color-alarm-glow: 244, 114, 114 / 0.4;
-  --color-cyan: 6, 214, 166;
-  --color-cyan-glow: 6, 214, 166 / 0.3;
-  --color-text-primary: 244, 244, 245;
-  --color-text-secondary: 161, 161, 170;
-  --color-text-muted: 107, 114, 128;
+  --bg: #000;
+  --panel: #111;
+  --text: #fff;
+  --accent: #ff4f00;
+  --accent-dim: #7a2600;
+  --track: #2a1a12;
+  --shadow: #fff;
+}
+
+[data-mode='break'] {
+  --accent: #00e5c7;
+  --accent-dim: #00574c;
+  --track: #0b2a26;
+}
+
+[data-mode='long'] {
+  --accent: #ffffff;
+  --accent-dim: #666;
+  --track: #222;
+}
+
+[data-state='paused'] {
+  --accent-dim: #6b4a3a;
 }
 
 /* ===== Global Background ===== */
@@ -71,6 +82,19 @@ body {
 .glass-card {
   background: #111111;
   border: 1px solid rgba(255, 255, 255, 0.06);
+  position: relative;
+}
+
+.glass-card::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.03) 1px, transparent 1px);
+  background-size: 20px 20px;
+  opacity: 1;
 }
 
 /* ===== Circular Progress Ring ===== */
@@ -79,9 +103,19 @@ body {
 }
 
 .progress-ring__circle {
-  transition: stroke-dashoffset 0.3s ease;
+  transition: stroke-dashoffset 1s linear;
   transform: rotate(0deg);
   transform-origin: 50% 50%;
+}
+
+.urgent .progress-ring__circle {
+  animation: beat 1s steps(2, end) infinite;
+}
+
+@keyframes beat {
+  50% {
+    stroke-width: 4.5;
+  }
 }
 
 /* ===== Pulse Animation ===== */
@@ -171,4 +205,185 @@ body {
 /* ===== Tabular Numbers ===== */
 .tabular-nums {
   font-variant-numeric: tabular-nums;
+}
+
+/* ===== Mode Transitions ===== */
+[data-mode],
+[data-state] {
+  transition: stroke 200ms steps(4, end), color 200ms steps(4, end), background-color 200ms steps(4, end);
+}
+
+/* ===== Button Press State ===== */
+.btn {
+  --o: 4px;
+  box-shadow: var(--o) var(--o) 0 var(--shadow, #fff);
+  transform: translate(0, 0);
+  transition: transform 60ms steps(2, end), box-shadow 60ms steps(2, end), background-color 60ms steps(2, end), color 60ms steps(2, end);
+}
+
+.btn:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: calc(var(--o) + 2px) calc(var(--o) + 2px) 0 var(--shadow, #fff);
+}
+
+.btn:active {
+  transform: translate(var(--o), var(--o));
+  box-shadow: 0 0 0 var(--shadow, #fff);
+}
+
+.btn:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 3px;
+}
+
+/* Black button variant needs accent shadow */
+.btn.bg-black {
+  --shadow: var(--accent);
+}
+
+/* Accent-colored buttons (orange/cyan/white) swap to white on hover */
+.btn.accent-btn:hover {
+  background-color: #fff;
+  color: #000;
+}
+
+/* ===== Play/Pause Morph ===== */
+svg[data-state] .bar {
+  opacity: 0;
+  transform-origin: center;
+  transition: opacity 80ms steps(2, end);
+}
+
+svg[data-state] .tri {
+  transition: opacity 80ms steps(2, end);
+}
+
+svg[data-state='running'] .tri {
+  opacity: 0;
+}
+
+svg[data-state='running'] .bar {
+  opacity: 1;
+}
+
+/* ===== Tick Marks ===== */
+.tick {
+  stroke: var(--accent);
+  stroke-width: 1;
+}
+
+.tick.elapsed {
+  stroke: var(--track);
+}
+
+/* ===== Brutalist Tooltips ===== */
+[data-tip] {
+  position: relative;
+}
+
+[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  bottom: calc(100% + 10px);
+  left: 50%;
+  transform: translateX(-50%);
+  white-space: nowrap;
+  padding: 4px 8px;
+  font: 700 10px/1 var(--mono, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Inter', sans-serif);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #000;
+  background: var(--accent);
+  border: 2px solid #000;
+  box-shadow: 3px 3px 0 #fff;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0s linear 400ms;
+}
+
+[data-tip]:hover::after,
+[data-tip]:focus-visible::after {
+  opacity: 1;
+}
+
+/* ===== Glitch Effect ===== */
+.glitch {
+  animation: glitch 200ms steps(2, end) 1;
+}
+
+@keyframes glitch {
+  0% {
+    text-shadow: 2px 0 var(--accent), -2px 0 #0ff;
+    transform: translateX(0);
+  }
+  25% {
+    text-shadow: -2px 0 var(--accent), 2px 0 #0ff;
+    transform: translateX(-2px);
+    clip-path: inset(10% 0 55% 0);
+  }
+  50% {
+    clip-path: inset(60% 0 5% 0);
+    transform: translateX(2px);
+  }
+  100% {
+    text-shadow: none;
+    transform: none;
+    clip-path: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .glitch {
+    animation: none;
+  }
+}
+
+/* ===== Energy Glow ===== */
+.progress-ring__circle {
+  filter: drop-shadow(0 0 calc(var(--energy, 0) * 8px) var(--accent));
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .progress-ring__circle {
+    filter: none;
+  }
+}
+
+/* ===== Rolling Digits ===== */
+@keyframes slide {
+  from {
+    transform: translateY(100%);
+  }
+  to {
+    transform: translateY(0);
+  }
+}
+
+.animate-slide {
+  animation: slide 120ms steps(4, end);
+}
+
+/* ===== Finish Celebration ===== */
+.finish-flash {
+  animation: flashRing 1.5s steps(2, end) 2;
+}
+
+@keyframes flashRing {
+  0%, 100% {
+    stroke-width: 2.5;
+  }
+  50% {
+    stroke-width: 6;
+  }
+}
+
+/* ===== Reduced Motion ===== */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

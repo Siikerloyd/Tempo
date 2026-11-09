@@ -1,5 +1,5 @@
-appId: com.momentum.app
-productName: Momentum
+appId: com.tempo.app
+productName: Tempo
 directories:
   buildResources: build
 files:
@@ -11,7 +11,7 @@ files:
 asarUnpack:
   - resources/**
 win:
-  executableName: Momentum
+  executableName: Tempo
 nsis:
   artifactName: ${name}-${version}-setup.${ext}
   shortcutName: ${productName}

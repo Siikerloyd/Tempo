@@ -46,7 +46,7 @@ function TopBar({ isActive, isAlarm }) {
           )}
         </div>
         <span className="text-[11px] font-semibold tracking-wider text-zinc-400 uppercase">
-          Momentum
+          Tempo
         </span>
       </div>
 
@@ -58,10 +58,11 @@ function TopBar({ isActive, isAlarm }) {
         <button
           onClick={handleTogglePin}
           aria-label={isPinned ? 'Unpin from top' : 'Keep on top'}
-          className={`w-5 h-5 rounded flex items-center justify-center transition-all duration-200 cursor-pointer ${
+          data-tip={isPinned ? 'UNPIN' : 'PIN ON TOP'}
+          className={`w-5 h-5 rounded flex items-center justify-center cursor-pointer focus-visible:outline-none transition-colors duration-150 ${
             isPinned
-              ? 'text-[#FF4D00] hover:bg-[#FF4D00]/20'
-              : 'text-zinc-600 hover:text-[#FF4D00] hover:bg-[#FF4D00]/10'
+              ? 'border-2 border-[#FF4D00] bg-[#FF4D00] text-black'
+              : 'text-zinc-600 border-2 border-zinc-600 bg-white hover:border-[#FF4D00] hover:text-[#FF4D00]'
           }`}
         >
           {isPinned ? <Pin className="w-3 h-3 rotate-45" /> : <PinOff className="w-3 h-3" />}
@@ -70,7 +71,7 @@ function TopBar({ isActive, isAlarm }) {
         <button
           onClick={handleMinimize}
           aria-label="Minimize"
-          className="w-5 h-5 rounded flex items-center justify-center text-zinc-500 hover:text-[#FF4D00] hover:bg-[#FF4D00]/10 transition-all duration-200 cursor-pointer"
+          className="w-5 h-5 rounded flex items-center justify-center text-zinc-600 border-2 border-zinc-600 bg-white hover:border-[#FF4D00] hover:text-[#FF4D00] cursor-pointer focus-visible:outline-none transition-colors duration-150"
         >
           <Minus className="w-3 h-3" />
         </button>
@@ -78,7 +79,7 @@ function TopBar({ isActive, isAlarm }) {
         <button
           onClick={handleClose}
           aria-label="Close"
-          className="w-5 h-5 rounded flex items-center justify-center text-zinc-500 hover:text-[#FF4D00] hover:bg-[#FF4D00]/10 transition-all duration-200 cursor-pointer"
+          className="w-5 h-5 rounded flex items-center justify-center text-zinc-600 border-2 border-zinc-600 bg-white hover:border-[#FF4D00] hover:text-[#FF4D00] cursor-pointer focus-visible:outline-none transition-colors duration-150"
         >
           <X className="w-3 h-3" />
         </button>

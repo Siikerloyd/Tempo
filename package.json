@@ -1,7 +1,7 @@
 {
-  "name": "momentum",
+  "name": "tempo",
   "version": "1.0.0",
-  "description": "Momentum — a simple desktop focus timer",
+  "description": "Tempo — a brutalist Pomodoro timer for deep work",
   "main": "./out/main/index.js",
   "author": "example.com",
   "homepage": "https://electron-vite.org",
@@ -28,7 +28,7 @@
     "@electron-toolkit/eslint-config": "^2.0.0",
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@vitejs/plugin-react": "^4.3.4",
-    "electron": "^37.2.3",
+    "electron": "^37.10.3",
     "electron-builder": "^25.1.8",
     "electron-vite": "^4.0.0",
     "eslint": "^9.31.0",
@@ -38,6 +38,10 @@
     "prettier": "^3.6.2",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "sharp": "^0.35.5",
     "vite": "^7.0.5"
+  },
+  "allowScripts": {
+    "electron@37.10.3": true
   }
 }

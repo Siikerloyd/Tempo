@@ -5,13 +5,13 @@ import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
 
-const ALARM_AUDIO_CONFIG = 'alarm-audio.json'
+const ALARM_AUDIO_CONFIG = 'tempo-alarm-audio.json'
 const MAX_ALARM_AUDIO_BYTES = 25 * 1024 * 1024
-const ALARM_PROTOCOL_URL = 'momentum://alarm'
+const ALARM_PROTOCOL_URL = 'tempo://alarm'
 
 protocol.registerSchemesAsPrivileged([
   {
-    scheme: 'momentum',
+    scheme: 'tempo',
     privileges: {
       standard: true,
       secure: true,
@@ -99,7 +99,7 @@ function createWindow() {
     backgroundColor: '#000000',
     hasShadow: true,
     icon,
-    title: 'Momentum',
+    title: 'Tempo',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false,
@@ -154,7 +154,7 @@ if (!gotTheLock) {
   // Some APIs can only be used after this event occurs.
   app.whenReady().then(() => {
     // Set app user model id for windows
-    electronApp.setAppUserModelId('com.momentum.app')
+    electronApp.setAppUserModelId('com.tempo.app')
 
     // Default open or close DevTools by F12 in development
     // and ignore CommandOrControl + R in production.
@@ -163,7 +163,7 @@ if (!gotTheLock) {
       optimizer.watchWindowShortcuts(window)
     })
 
-    protocol.handle('momentum', async () => {
+    protocol.handle('tempo', async () => {
       try {
         const saved = await readSavedAlarmPath()
         if (!saved?.filePath) {
