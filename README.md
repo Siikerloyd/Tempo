@@ -8,9 +8,21 @@ A brutalist Pomodoro timer for deep work. Sharp edges, hard shadows, mechanical 
   <img src="https://img.shields.io/badge/version-1.0.0-orange?style=flat-square" alt="Version" />
   <img src="https://img.shields.io/badge/license-MIT-blue?style=flat-square" alt="License" />
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey?style=flat-square" alt="Platform" />
+  <br>
+  <a href="https://github.com/Siikerloyd/Tempo/releases/latest">
+    <img src="https://img.shields.io/badge/download-latest-brightgreen?style=for-the-badge&logo=github" alt="Download Latest" />
+  </a>
 </p>
 
 **Tempo** is a compact desktop timer that enforces the Pomodoro technique through a neo-brutalist interface designed to stay out of your way until you need it. No soft edges, no distractions—just a ticking clock and the discipline to sit with it.
+
+## Download
+
+Get the latest release from [GitHub Releases](https://github.com/Siikerloyd/Tempo/releases/latest).
+
+- **Windows**: `Tempo-1.0.0-setup.exe`
+- **macOS**: `Tempo-1.0.0.dmg`
+- **Linux**: `Tempo-1.0.0.AppImage` or `tempo_1.0.0_amd64.deb`
 
 ---
 

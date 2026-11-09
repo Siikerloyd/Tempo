@@ -3,19 +3,20 @@
   "version": "1.0.0",
   "description": "Tempo — a brutalist Pomodoro timer for deep work",
   "main": "./out/main/index.js",
-  "author": "example.com",
-  "homepage": "https://electron-vite.org",
+  "author": "Siikerloyd",
+  "homepage": "https://github.com/Siikerloyd/Tempo#readme",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
     "start": "node scripts/run-electron-command.cjs electron-vite preview",
     "dev": "node scripts/run-electron-command.cjs electron-vite dev",
     "build": "node scripts/run-electron-command.cjs electron-vite build",
-    "postinstall": "electron-builder install-app-deps",
+    "postinstall": "node scripts/ensure-electron.cjs && electron-builder install-app-deps",
     "build:unpack": "npm run build && node scripts/run-electron-command.cjs electron-builder --dir",
     "build:win": "npm run build && node scripts/run-electron-command.cjs electron-builder --win",
     "build:mac": "npm run build && node scripts/run-electron-command.cjs electron-builder --mac",
-    "build:linux": "npm run build && node scripts/run-electron-command.cjs electron-builder --linux"
+    "build:linux": "npm run build && node scripts/run-electron-command.cjs electron-builder --linux",
+    "release": "npm run build && node scripts/run-electron-command.cjs electron-builder --publish always"
   },
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
@@ -43,5 +44,11 @@
   },
   "allowScripts": {
     "electron@37.10.3": true
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "electron",
+      "esbuild"
+    ]
   }
 }
