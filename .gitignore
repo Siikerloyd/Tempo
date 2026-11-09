@@ -42,3 +42,4 @@ Desktop.ini
 # project-specific
 mdskills
 scripts/create-icon.js
+.electron-cache
