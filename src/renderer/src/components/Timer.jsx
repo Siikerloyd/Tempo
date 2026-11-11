@@ -17,6 +17,7 @@ import {
 
 function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const [isEditing, setIsEditing] = useState(false)
+  const [hasStarted, setHasStarted] = useState(false)
 
   // Mode: focus | break | long
   const [mode, setMode] = useState('focus')
@@ -413,15 +414,15 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
   // Microcopy rotation
   const microcopyLines = {
-    idle: ['READY WHEN YOU ARE.', 'PICK A TASK.'],
-    paused: ['PAUSED', 'HOLDING.', 'BREATHE.'],
+    idle: ['READY WHEN YOU ARE.'],
+    paused: ['PAUSED', 'HOLDING.'],
     running: {
-      focus: ['IN THE ZONE', 'LOCKED IN.', 'KEEP GOING.'],
-      break: ['RECHARGE.', 'LOOK AWAY.', 'STRETCH.'],
-      long: ['DEEP REST.', 'RELAX.', 'CLEAR MIND.']
+      focus: ['IN THE ZONE'],
+      break: ['RECHARGE'],
+      long: ['DEEP REST']
     },
-    final: ['ALMOST.', 'FINISH STRONG.'],
-    done: ['DONE. NICE.', 'SESSION COMPLETE']
+    final: ['ALMOST.'],
+    done: ['DONE. NICE.']
   }
 
   const getCurrentMicrocopy = () => {
@@ -431,7 +432,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       const modeLines = microcopyLines.running[mode] || microcopyLines.running.focus
       return modeLines[microcopyIndex % modeLines.length]
     }
-    if (totalSeconds === 0) return microcopyLines.idle[microcopyIndex % microcopyLines.idle.length]
+    if (!hasStarted) return microcopyLines.idle[microcopyIndex % microcopyLines.idle.length]
     return microcopyLines.paused[microcopyIndex % microcopyLines.paused.length]
   }
 
@@ -472,6 +473,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     }
     stopAlarmSound()
     setIsAlarm(false)
+    setHasStarted(true)
     setIsActive(true)
   }
 
@@ -490,6 +492,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const handleReset = () => {
     setIsActive(false)
     setIsAlarm(false)
+    setHasStarted(false)
     stopAlarmSound()
     setTotalSeconds(initialSeconds)
   }
@@ -513,6 +516,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       setIsAlarm(false)
       stopAlarmSound()
       if (startImmediately) {
+        setHasStarted(true)
         setIsActive(true)
       }
     }
@@ -532,6 +536,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     setIsEditing(false)
     setIsAlarm(false)
     stopAlarmSound()
+    setHasStarted(true)
     setIsActive(true)
   }
 
@@ -555,7 +560,8 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const handleDismissAlarm = () => {
     setIsAlarm(false)
     stopAlarmSound()
-    setTotalSeconds(initialSeconds)
+    setHasStarted(false)
+    setTotalSeconds(0)
   }
 
 
@@ -566,16 +572,36 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const remainingOffset = circumference - (progressPercent / 100) * circumference
 
   const renderProgressRing = () => {
+    const ringState = isAlarm
+      ? 'alarm'
+      : !hasStarted
+        ? 'idle'
+        : !isActive
+          ? 'paused'
+          : isUrgent
+            ? 'urgent'
+            : 'running'
+    const isPausedRing = ringState === 'paused'
+    const trackColor =
+      ringState === 'idle' ? '#ffffff' : ringState === 'alarm' ? '#ff4f00' : 'var(--track)'
+    const progressColor =
+      ringState === 'idle' || isPausedRing ? '#ffffff' : 'var(--accent)'
+    const ringOffset =
+      ringState === 'idle' ? 0 : ringState === 'alarm' ? circumference : remainingOffset
     const totalMinutes = Math.max(1, Math.round(initialSeconds / 60))
     const elapsedMinutes = Math.floor((initialSeconds - totalSeconds) / 60)
 
     const ticks = Array.from({ length: totalMinutes }, (_, i) => {
       const angle = (360 / totalMinutes) * i
       const isElapsed = i < elapsedMinutes
+      const stateTickColor =
+        ringState === 'idle' ? '#ffffff' : ringState === 'alarm' ? '#ff4f00' : isPausedRing ? '#ffffff' : undefined
       return (
         <line
           key={i}
           className={`tick ${isElapsed ? 'elapsed' : ''}`}
+          stroke={stateTickColor}
+          strokeOpacity={isPausedRing ? 0.35 : undefined}
           x1="60"
           y1="2"
           x2="60"
@@ -588,25 +614,36 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
     return (
       <svg
-        className={`pointer-events-none absolute inset-0 h-full w-full ${isUrgent ? 'urgent' : ''}`}
+        className={`pointer-events-none absolute inset-0 h-full w-full ${ringState === 'urgent' ? 'urgent' : ''}`}
+        data-ring-state={ringState}
         viewBox="0 0 120 120"
         preserveAspectRatio="xMidYMid meet"
         aria-hidden="true"
       >
-        <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--track)" strokeWidth="2.5" />
+        <circle
+          cx="60"
+          cy="60"
+          r={radius}
+          fill="none"
+          stroke={trackColor}
+          strokeOpacity={isPausedRing ? 0.25 : 1}
+          strokeWidth="2.5"
+          className={ringState === 'alarm' ? 'finish-flash' : ''}
+        />
         {ticks}
         <circle
           cx="60"
           cy="60"
           r={radius}
           fill="none"
-          stroke="var(--accent)"
+          stroke={progressColor}
+          strokeOpacity={isPausedRing ? 0.5 : 1}
           strokeWidth="2.5"
           strokeDasharray={circumference}
-          strokeDashoffset={remainingOffset}
+          strokeDashoffset={ringOffset}
           strokeLinecap="butt"
           transform="rotate(-90 60 60)"
-          className={`progress-ring__circle ${isAlarm ? 'finish-flash' : ''}`}
+          className="progress-ring__circle"
           style={{ '--energy': energyLevel }}
         />
       </svg>
@@ -626,32 +663,49 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     <div
       className="relative flex-1 min-h-0 flex flex-col justify-between border-x-2 border-black bg-[var(--panel)] px-3 py-1 pb-2.5 overflow-hidden"
       data-mode={mode}
-      data-state={isActive ? 'running' : totalSeconds === 0 ? 'idle' : 'paused'}
+      data-state={
+        isEditing
+          ? 'edit'
+          : isAlarm
+            ? 'alarm'
+            : isUrgent
+              ? 'urgent'
+              : isActive
+                ? 'running'
+                : !hasStarted
+                  ? 'idle'
+                  : 'paused'
+      }
     >
       {isAlarm ? (
         // ===== ALARM ACTIVE STATE =====
-        <div className="flex-1 min-h-0 flex flex-col items-center justify-center gap-1 overflow-hidden">
-          <div className="relative flex items-center justify-center">
-            <BellRing className="w-8 h-8 text-[var(--accent)] animate-bounce" />
-            <span className="absolute -inset-2 border-2 border-[var(--accent)] animate-ping" />
+        <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
+          <div className="relative aspect-square h-[94%] max-h-full">
+            {renderProgressRing()}
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 overflow-hidden">
+              <div className="relative flex items-center justify-center">
+                <BellRing className="w-8 h-8 text-[#FF4F00] animate-bounce" />
+                <span className="absolute -inset-2 border-2 border-[#FF4F00] animate-ping" />
+              </div>
+
+              <h2 className="border-x-4 border-[#FF4F00] px-3 text-2xl font-black text-white tracking-[0.2em] uppercase">
+                Time&apos;s Up!
+              </h2>
+
+              <p className="text-xs font-bold text-[#FF4F00] uppercase tracking-widest">
+                {getCurrentMicrocopy()}
+              </p>
+
+              {renderSoundWave()}
+
+              <button
+                onClick={handleDismissAlarm}
+                className="btn accent-btn mt-0.5 shrink-0 border-2 border-black px-6 py-2 bg-[#FF4F00] text-black font-black text-sm uppercase tracking-widest cursor-pointer"
+              >
+                Dismiss Alarm
+              </button>
+            </div>
           </div>
-
-          <h2 className="border-x-4 border-[var(--accent)] px-3 text-2xl font-black text-white tracking-[0.2em] uppercase">
-            Time's Up!
-          </h2>
-
-          <p className="text-xs font-bold text-zinc-400 uppercase tracking-widest">
-            Session complete
-          </p>
-
-          {renderSoundWave()}
-
-          <button
-            onClick={handleDismissAlarm}
-            className="btn accent-btn mt-0.5 shrink-0 border-2 border-black px-6 py-2 bg-[var(--accent)] text-black font-black text-sm uppercase tracking-widest cursor-pointer"
-          >
-            Dismiss Alarm
-          </button>
         </div>
       ) : isEditing ? (
         // ===== EDIT / SETUP MODE =====
@@ -783,7 +837,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6">
                 <div
                   className={`font-mono text-[1.7rem] font-black leading-none tracking-tight tabular-nums transition-all duration-300 ${
-                    isActive ? 'text-[var(--accent)]' : totalSeconds === 0 ? 'text-zinc-600' : 'text-[var(--text)]'
+                    isActive ? 'text-[var(--accent)]' : 'text-[var(--text)]'
                   } ${isGlitching ? 'glitch' : ''}`}
                 >
                   {timeString}
@@ -796,9 +850,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
                       ? 'text-[var(--accent)]'
                       : isActive
                         ? 'text-[var(--accent)]'
-                        : totalSeconds === 0
-                          ? 'text-zinc-600'
-                          : 'text-[var(--text)]'
+                        : 'text-[var(--text)]'
                   }`}
                 >
                   {audioError || getCurrentMicrocopy()}

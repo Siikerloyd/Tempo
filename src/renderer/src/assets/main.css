@@ -73,6 +73,10 @@
   --accent-dim: #6b4a3a;
 }
 
+[data-state='alarm'] {
+  --accent: #ff4f00;
+}
+
 /* ===== Global Background ===== */
 body {
   background: radial-gradient(ellipse at top, rgba(15, 15, 35, 0.9) 0%, rgba(10, 10, 20, 0.95) 100%);
