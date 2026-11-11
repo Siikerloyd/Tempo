@@ -12,9 +12,20 @@ const platformExe =
       : 'electron'
 const binaryPath = path.join(electronPkgDir, 'dist', platformExe)
 const pathTxt = path.join(electronPkgDir, 'path.txt')
+const resourcesPath =
+  process.platform === 'darwin'
+    ? path.join(electronPkgDir, 'dist', 'Electron.app', 'Contents', 'Resources')
+    : path.join(electronPkgDir, 'dist', 'resources')
+const requiredFiles = [
+  binaryPath,
+  pathTxt,
+  path.join(electronPkgDir, 'dist', 'version'),
+  path.join(resourcesPath, 'default_app.asar')
+]
+const hasCompleteElectronInstall = () => requiredFiles.every((filePath) => fs.existsSync(filePath))
 
-if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
-  console.log('Tempo: Electron binary not found. Installing...')
+if (!hasCompleteElectronInstall()) {
+  console.log('Tempo: Electron installation is incomplete. Installing...')
 
   // Use a local writable cache so EPERM on system cache does not block download
   const localCache = path.resolve('.electron-cache')
@@ -29,11 +40,16 @@ if (!fs.existsSync(binaryPath) || !fs.existsSync(pathTxt)) {
   env.electron_config_cache = localCache
 
   try {
+    fs.rmSync(path.join(electronPkgDir, 'dist'), { recursive: true, force: true })
+    fs.rmSync(pathTxt, { force: true })
     execFileSync(process.execPath, [path.join(electronPkgDir, 'install.js')], {
       cwd: electronPkgDir,
       stdio: 'inherit',
       env
     })
+    if (!hasCompleteElectronInstall()) {
+      throw new Error('Electron installation completed without all required runtime files.')
+    }
     console.log('Tempo: Electron binary installed successfully.')
   } catch (err) {
     console.error('Tempo: Failed to install Electron binary.')

@@ -37,7 +37,6 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const [isGlitching, setIsGlitching] = useState(false)
   const [completedSessions, setCompletedSessions] = useState(0)
   const [streak, setStreak] = useState(0)
-  const [prevTime, setPrevTime] = useState('')
 
   const audioRef = useRef(null)
   const previewAudioRef = useRef(null)
@@ -45,6 +44,9 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const beepIntervalRef = useRef(null)
   const beepTimeoutRef = useRef(null)
   const audioCtxRef = useRef(null)
+  const timerDeadlineRef = useRef(null)
+  const totalSecondsRef = useRef(totalSeconds)
+  totalSecondsRef.current = totalSeconds
 
   // Helper to play a short test/preview tone
   const playTone = (freq = 880, duration = 0.2) => {
@@ -343,16 +345,18 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   useEffect(() => {
     if (!isActive) return
 
-    const interval = setInterval(() => {
-      setTotalSeconds((prev) => {
-        if (prev <= 1) {
-          return 0
-        }
-        return prev - 1
-      })
-    }, 1000)
+    const deadline = Date.now() + totalSecondsRef.current * 1000
+    timerDeadlineRef.current = deadline
 
-    return () => clearInterval(interval)
+    const interval = setInterval(() => {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      setTotalSeconds((current) => (current === remaining ? current : remaining))
+    }, 200)
+
+    return () => {
+      clearInterval(interval)
+      timerDeadlineRef.current = null
+    }
   }, [isActive])
 
   // Trigger alarm when timer hits 0
@@ -406,11 +410,6 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
   // Format time for rolling animation
   const timeString = `${curHours.toString().padStart(2, '0')}:${curMinutes.toString().padStart(2, '0')}:${curSeconds.toString().padStart(2, '0')}`
-
-  // Track previous time for animation
-  useEffect(() => {
-    setPrevTime(timeString)
-  }, [timeString])
 
   // Microcopy rotation
   const microcopyLines = {
@@ -479,6 +478,12 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const handlePause = () => {
     setIsGlitching(true)
     setTimeout(() => setIsGlitching(false), 200)
+    const deadline = timerDeadlineRef.current
+    if (deadline !== null) {
+      const remaining = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      if (remaining === 0) return
+      setTotalSeconds(remaining)
+    }
     setIsActive(false)
   }
 
@@ -781,18 +786,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
                     isActive ? 'text-[var(--accent)]' : totalSeconds === 0 ? 'text-zinc-600' : 'text-[var(--text)]'
                   } ${isGlitching ? 'glitch' : ''}`}
                 >
-                  {timeString.split('').map((char, i) => {
-                    const changed = prevTime[i] !== char && prevTime !== ''
-                    const isColon = char === ':'
-                    return (
-                      <span
-                        key={i}
-                        className={`inline-block overflow-hidden ${changed && !isColon ? 'animate-slide' : ''}`}
-                      >
-                        {char}
-                      </span>
-                    )
-                  })}
+                  {timeString}
                 </div>
 
                 {/* Status Label */}

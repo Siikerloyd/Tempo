@@ -349,20 +349,6 @@ svg[data-state='running'] .bar {
   }
 }
 
-/* ===== Rolling Digits ===== */
-@keyframes slide {
-  from {
-    transform: translateY(100%);
-  }
-  to {
-    transform: translateY(0);
-  }
-}
-
-.animate-slide {
-  animation: slide 120ms steps(4, end);
-}
-
 /* ===== Finish Celebration ===== */
 .finish-flash {
   animation: flashRing 1.5s steps(2, end) 2;
