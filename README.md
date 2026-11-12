@@ -18,13 +18,15 @@ A brutalist Pomodoro timer for deep work. Sharp edges, hard shadows, mechanical 
 
 ## Download
 
-Get the latest release from [GitHub Releases](https://github.com/Siikerloyd/Tempo/releases/latest).
+Choose your operating system below to open the latest release, then download the matching file from its **Assets** list:
 
-- **Windows**: Windows installer
-- **macOS**: DMG disk image
-- **Linux**: AppImage or Debian package (`.deb`)
+| Platform         | Release page                                                                | File to download                                          |
+| ---------------- | --------------------------------------------------------------------------- | --------------------------------------------------------- |
+| Windows (64-bit) | [Latest Tempo release](https://github.com/Siikerloyd/Tempo/releases/latest) | `tempo-<version>-setup.exe`                               |
+| macOS            | [Latest Tempo release](https://github.com/Siikerloyd/Tempo/releases/latest) | `tempo-<version>.dmg`                                     |
+| Linux (x86_64)   | [Latest Tempo release](https://github.com/Siikerloyd/Tempo/releases/latest) | `tempo-<version>.AppImage` or `tempo_<version>_amd64.deb` |
 
-Download filenames include the app version and may change between releases.
+Replace `<version>` with the release version shown on the page (for example, `1.0.0`). macOS also includes an Apple Silicon ZIP build when available. After downloading, open the installer or package for your operating system and follow its installation prompts.
 
 ---
 
