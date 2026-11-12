@@ -39,12 +39,13 @@ function InputField({ label, value, onChange, max = 59 }) {
 
   return (
     <div className="flex flex-col items-center">
-      <div className="relative flex flex-col items-center bg-white/[0.03] hover:bg-white/[0.06] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-[#FF4D00] border border-white/[0.08] hover:border-[#FF4D00]/60 rounded-lg px-1.5 py-0.5 transition-all duration-200">
+      <div className="relative flex flex-col items-center bg-white/[0.03] hover:bg-white/[0.06] focus-within:bg-white/[0.08] focus-within:ring-1 focus-within:ring-[var(--accent)] border border-white/[0.08] hover:border-[var(--accent)]/60 rounded-lg px-1.5 py-0.5 transition-all duration-200">
         <button
           type="button"
           onClick={increment}
           aria-label={`Increase ${label}`}
-          className="text-zinc-500 hover:text-[#FF4D00] hover:bg-[#FF4D00]/10 focus-visible:text-[#FF4D00] p-0.5 transition-colors cursor-pointer"
+          title={`Increase ${label}`}
+          className="text-zinc-300 hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 focus-visible:text-[var(--accent)] p-0.5 transition-colors cursor-pointer"
         >
           <ChevronUp className="w-2.5 h-2.5" />
         </button>
@@ -58,20 +59,21 @@ function InputField({ label, value, onChange, max = 59 }) {
           onFocus={handleFocus}
           onKeyDown={handleKeyDown}
           aria-label={label}
-          className="w-9 text-center font-mono text-sm font-bold bg-transparent text-white outline-none selection:bg-[#FF4D00]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[#FF4D00]"
+          className="w-9 text-center font-mono text-sm font-bold bg-transparent text-white outline-none selection:bg-[var(--accent)]/30 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-[var(--accent)]"
         />
 
         <button
           type="button"
           onClick={decrement}
           aria-label={`Decrease ${label}`}
-          className="text-zinc-500 hover:text-[#FF4D00] hover:bg-[#FF4D00]/10 focus-visible:text-[#FF4D00] p-0.5 transition-colors cursor-pointer"
+          title={`Decrease ${label}`}
+          className="text-zinc-300 hover:text-[var(--accent)] hover:bg-[var(--accent)]/10 focus-visible:text-[var(--accent)] p-0.5 transition-colors cursor-pointer"
         >
           <ChevronDown className="w-2.5 h-2.5" />
         </button>
       </div>
 
-      <span className="text-[8px] font-semibold text-zinc-500 tracking-wider mt-0.5 uppercase">
+      <span className="text-[8px] font-semibold text-zinc-300 tracking-wider mt-0.5 uppercase">
         {label}
       </span>
     </div>

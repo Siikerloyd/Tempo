@@ -2,8 +2,6 @@ import { useState, useEffect, useRef, useCallback } from 'react'
 import InputField from './inputField'
 import Alarm from '../assets/audio/Alarm.mp3'
 import {
-  Play,
-  Pause,
   RotateCcw,
   Sliders,
   Volume2,
@@ -12,10 +10,126 @@ import {
   X,
   BellRing,
   Music,
-  Flame
+  Flame,
+  SkipForward,
+  Play,
+  Pause,
+  ChartNoAxesColumn,
+  ChevronLeft
 } from 'lucide-react'
 
-function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
+const MODE_DEFAULTS = {
+  focus: { hours: 0, minutes: 25, seconds: 0 },
+  break: { hours: 0, minutes: 5, seconds: 0 },
+  long: { hours: 0, minutes: 15, seconds: 0 }
+}
+
+const getLocalDateKey = () => {
+  const date = new Date()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}
+
+const getRecentDateKeys = (today = getLocalDateKey()) => {
+  const [year, month, day] = today.split('-').map(Number)
+  const date = new Date(year, month - 1, day)
+
+  return Array.from({ length: 7 }, (_, index) => {
+    const recentDate = new Date(date)
+    recentDate.setDate(date.getDate() - (6 - index))
+    const recentMonth = String(recentDate.getMonth() + 1).padStart(2, '0')
+    const recentDay = String(recentDate.getDate()).padStart(2, '0')
+    return `${recentDate.getFullYear()}-${recentMonth}-${recentDay}`
+  })
+}
+
+const pruneDailyHistory = (history, today = getLocalDateKey()) => {
+  const recentDates = new Set(getRecentDateKeys(today))
+  const records = new Map()
+
+  for (const record of history) {
+    if (!record || !recentDates.has(record.date)) continue
+    records.set(record.date, {
+      date: record.date,
+      sessions: Number.isSafeInteger(record.sessions) ? Math.max(0, record.sessions) : 0,
+      focusSeconds: Number.isSafeInteger(record.focusSeconds) ? Math.max(0, record.focusSeconds) : 0
+    })
+  }
+
+  return [...records.values()].sort((first, second) => first.date.localeCompare(second.date))
+}
+
+const emptyDailyStats = (date = getLocalDateKey(), history = []) => ({
+  date,
+  sessions: 0,
+  focusSeconds: 0,
+  currentStreak: 0,
+  lastFocusDate: null,
+  history: pruneDailyHistory(history, date)
+})
+
+const loadCycleCount = () => {
+  const count = Number(window.localStorage.getItem('tempo-focus-cycle') || '0')
+  return Number.isInteger(count) ? Math.max(0, Math.min(4, count)) : 0
+}
+
+const loadDailyStats = () => {
+  const today = getLocalDateKey()
+  const savedStats = window.localStorage.getItem('tempo-daily-stats')
+
+  if (savedStats) {
+    try {
+      const parsed = JSON.parse(savedStats)
+      const history = pruneDailyHistory(
+        [...(Array.isArray(parsed.history) ? parsed.history : []), parsed],
+        today
+      )
+      const todayRecord = history.find((record) => record.date === today) || {
+        date: today,
+        sessions: 0,
+        focusSeconds: 0
+      }
+
+      return {
+        ...todayRecord,
+        currentStreak:
+          Number.isSafeInteger(parsed.currentStreak) && parsed.currentStreak > 0
+            ? parsed.currentStreak
+            : 0,
+        lastFocusDate: typeof parsed.lastFocusDate === 'string' ? parsed.lastFocusDate : null,
+        history
+      }
+    } catch {
+      return emptyDailyStats(today)
+    }
+  }
+
+  const legacyDate = window.localStorage.getItem('tempo-daily-streak-date')
+  const legacySessions = Number.parseInt(
+    window.localStorage.getItem('tempo-daily-streak') || '0',
+    10
+  )
+  const legacyIsToday =
+    legacyDate === today ||
+    (legacyDate && new Date(legacyDate).toDateString() === new Date().toDateString())
+
+  if (!legacyIsToday) return emptyDailyStats(today)
+
+  const legacyRecord = {
+    date: today,
+    sessions: Number.isFinite(legacySessions) ? Math.max(0, legacySessions) : 0,
+    focusSeconds: 0
+  }
+  return {
+    ...legacyRecord,
+    currentStreak: 0,
+    lastFocusDate: null,
+    history: pruneDailyHistory([legacyRecord], today)
+  }
+}
+
+function Timer({ isActive, setIsActive, isAlarm, setIsAlarm, isMiniMode, onToggleMiniMode }) {
   const [isEditing, setIsEditing] = useState(false)
   const [hasStarted, setHasStarted] = useState(false)
 
@@ -36,8 +150,13 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const [audioError, setAudioError] = useState('')
   const [microcopyIndex, setMicrocopyIndex] = useState(0)
   const [isGlitching, setIsGlitching] = useState(false)
-  const [completedSessions, setCompletedSessions] = useState(0)
-  const [streak, setStreak] = useState(0)
+  const [completedSessions, setCompletedSessions] = useState(loadCycleCount)
+  const [dailyStats, setDailyStats] = useState(loadDailyStats)
+  const [isShowingStats, setIsShowingStats] = useState(false)
+  const [nextMode, setNextMode] = useState(null)
+  const [autoStartNext, setAutoStartNext] = useState(
+    () => window.localStorage.getItem('tempo-auto-start-next') === 'true'
+  )
 
   const audioRef = useRef(null)
   const previewAudioRef = useRef(null)
@@ -46,6 +165,9 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const beepTimeoutRef = useRef(null)
   const audioCtxRef = useRef(null)
   const timerDeadlineRef = useRef(null)
+  const autoStartTimeoutRef = useRef(null)
+  const editingModeRef = useRef(mode)
+  const statsTriggerRef = useRef(null)
   const totalSecondsRef = useRef(totalSeconds)
   totalSecondsRef.current = totalSeconds
 
@@ -80,8 +202,6 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     }
   }
 
-
-
   // Synthesized fallback alarm (creative pattern if MP3 fails)
   const startSynthesizedAlarm = useCallback(() => {
     const AudioCtx = window.AudioContext || window.webkitAudioContext
@@ -98,7 +218,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       const now = ctx.currentTime
 
       // Create a more interesting alarm pattern
-      const frequencies = [523.25, 659.25, 783.99, 1046.50] // C5, E5, G5, C6
+      const frequencies = [523.25, 659.25, 783.99, 1046.5] // C5, E5, G5, C6
       const durations = [0.15, 0.15, 0.15, 0.3]
 
       frequencies.forEach((freq, i) => {
@@ -199,6 +319,29 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     stopPreviewSound()
     stopSynthesizedAlarm()
   }, [stopPreviewSound, stopSynthesizedAlarm])
+
+  const beginPhase = useCallback(
+    (phase) => {
+      const duration = MODE_DEFAULTS[phase]
+      if (!duration) return
+
+      clearTimeout(autoStartTimeoutRef.current)
+      autoStartTimeoutRef.current = null
+      const total = duration.hours * 3600 + duration.minutes * 60 + duration.seconds
+      setMode(phase)
+      setHours(duration.hours)
+      setMinutes(duration.minutes)
+      setSeconds(duration.seconds)
+      setTotalSeconds(total)
+      setInitialSeconds(total)
+      setNextMode(null)
+      setHasStarted(true)
+      setIsAlarm(false)
+      stopAlarmSound()
+      setIsActive(true)
+    },
+    [setIsActive, setIsAlarm, stopAlarmSound]
+  )
 
   const handleToggleMute = useCallback(() => {
     const nextMuted = !isMuted
@@ -321,26 +464,36 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     window.api?.setBackgroundThrottling?.(!(isActive || isAlarm))
   }, [isActive, isAlarm])
 
-  // Load streak from localStorage on mount
   useEffect(() => {
-    const today = new Date().toDateString()
-    const savedStreak = localStorage.getItem('tempo-daily-streak')
-    const savedDate = localStorage.getItem('tempo-daily-streak-date')
+    window.localStorage.setItem('tempo-auto-start-next', String(autoStartNext))
+  }, [autoStartNext])
 
-    if (savedStreak && savedDate) {
-      if (savedDate === today) {
-        setStreak(parseInt(savedStreak, 10))
-      } else {
-        // New day, reset streak
-        setStreak(0)
-        localStorage.setItem('tempo-daily-streak', '0')
-        localStorage.setItem('tempo-daily-streak-date', today)
-      }
-    } else {
-      localStorage.setItem('tempo-daily-streak', '0')
-      localStorage.setItem('tempo-daily-streak-date', today)
-    }
-  }, [])
+  useEffect(() => () => clearTimeout(autoStartTimeoutRef.current), [])
+
+  useEffect(() => {
+    window.localStorage.setItem('tempo-daily-stats', JSON.stringify(dailyStats))
+  }, [dailyStats])
+
+  useEffect(() => {
+    window.localStorage.setItem('tempo-focus-cycle', String(completedSessions))
+  }, [completedSessions])
+
+  useEffect(() => {
+    const now = new Date()
+    const nextMidnight = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).getTime()
+    const timeout = setTimeout(
+      () => {
+        setDailyStats((previous) => ({
+          ...emptyDailyStats(getLocalDateKey(), previous.history),
+          currentStreak: previous.currentStreak,
+          lastFocusDate: previous.lastFocusDate
+        }))
+      },
+      nextMidnight - now.getTime() + 50
+    )
+
+    return () => clearTimeout(timeout)
+  }, [dailyStats.date])
 
   // Countdown interval
   useEffect(() => {
@@ -366,34 +519,67 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       setIsActive(false)
       setIsAlarm(true)
 
+      let suggestedMode
       // Handle mode switching
       if (mode === 'focus') {
-        const newCompleted = (completedSessions + 1) % 5
+        const newCompleted = Math.min(4, completedSessions + 1)
         setCompletedSessions(newCompleted)
+        suggestedMode = newCompleted === 4 ? 'long' : 'break'
 
         // Increment streak for completed focus session
-        const today = new Date().toDateString()
-        const newStreak = streak + 1
-        setStreak(newStreak)
-        localStorage.setItem('tempo-daily-streak', newStreak.toString())
-        localStorage.setItem('tempo-daily-streak-date', today)
-
-        // After 4th focus session, switch to long break; otherwise short break
-        if (newCompleted === 0) {
-          setMode('long')
-        } else {
-          setMode('break')
-        }
+        const today = getLocalDateKey()
+        setDailyStats((previous) => {
+          const current =
+            previous.date === today
+              ? previous
+              : {
+                  ...emptyDailyStats(today, previous.history),
+                  currentStreak: previous.currentStreak,
+                  lastFocusDate: previous.lastFocusDate
+                }
+          const yesterday = getRecentDateKeys(today)[5]
+          const nextStats = {
+            ...current,
+            sessions: current.sessions + 1,
+            focusSeconds: current.focusSeconds + initialSeconds,
+            currentStreak:
+              current.lastFocusDate === today
+                ? current.currentStreak
+                : current.lastFocusDate === yesterday
+                  ? current.currentStreak + 1
+                  : 1,
+            lastFocusDate: today
+          }
+          return {
+            ...nextStats,
+            history: pruneDailyHistory([...previous.history, nextStats], today)
+          }
+        })
       } else {
-        // After break/long break, return to focus
-        setMode('focus')
+        suggestedMode = 'focus'
+        if (mode === 'long') setCompletedSessions(0)
       }
 
+      setNextMode(suggestedMode)
       setIsGlitching(true)
       setTimeout(() => setIsGlitching(false), 200)
       startAlarmSound()
+      if (autoStartNext) {
+        autoStartTimeoutRef.current = setTimeout(() => beginPhase(suggestedMode), 3000)
+      }
     }
-  }, [isActive, totalSeconds, setIsActive, setIsAlarm, startAlarmSound, mode, completedSessions, streak])
+  }, [
+    isActive,
+    totalSeconds,
+    setIsActive,
+    setIsAlarm,
+    startAlarmSound,
+    mode,
+    completedSessions,
+    initialSeconds,
+    autoStartNext,
+    beginPhase
+  ])
 
   // Helpers to format seconds into HH:MM:SS
   const curHours = Math.floor(totalSeconds / 3600)
@@ -404,17 +590,31 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   const progressPercent = initialSeconds > 0 ? (totalSeconds / initialSeconds) * 100 : 0
 
   // Energy level (0 to 1) for glow effect
-  const energyLevel = isActive ? 1 - (totalSeconds / initialSeconds) : 0
+  const energyLevel = isActive ? 1 - totalSeconds / initialSeconds : 0
 
   // Determine if in final minute (urgent state)
   const isUrgent = isActive && totalSeconds > 0 && totalSeconds <= 60
 
   // Format time for rolling animation
-  const timeString = `${curHours.toString().padStart(2, '0')}:${curMinutes.toString().padStart(2, '0')}:${curSeconds.toString().padStart(2, '0')}`
+  const timeString =
+    curHours > 0
+      ? `${curHours.toString().padStart(2, '0')}:${curMinutes.toString().padStart(2, '0')}:${curSeconds.toString().padStart(2, '0')}`
+      : `${curMinutes.toString().padStart(2, '0')}:${curSeconds.toString().padStart(2, '0')}`
+
+  useEffect(() => {
+    const modeTitle = mode === 'long' ? 'Long Break' : mode === 'break' ? 'Break' : 'Focus'
+    const title = `${timeString} · ${modeTitle}`
+    document.title = title
+    window.api?.setTimerTitle?.(title)
+  }, [mode, timeString])
+
+  useEffect(() => {
+    document.documentElement.dataset.mode = mode
+  }, [mode])
 
   // Microcopy rotation
   const microcopyLines = {
-    idle: ['READY WHEN YOU ARE.'],
+    idle: ['READY'],
     paused: ['PAUSED', 'HOLDING.'],
     running: {
       focus: ['IN THE ZONE'],
@@ -436,6 +636,83 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     return microcopyLines.paused[microcopyIndex % microcopyLines.paused.length]
   }
 
+  const renderSessionSquares = (pulseCurrent = false) => (
+    <div
+      className="flex items-center justify-center gap-1.5"
+      role="group"
+      aria-label={`${completedSessions} of 4 focus sessions completed`}
+    >
+      {[0, 1, 2, 3].map((index) => {
+        const isCompleted = index < completedSessions
+        const isCurrent =
+          !isCompleted && index === completedSessions && completedSessions < 4 && pulseCurrent
+
+        return (
+          <span
+            key={index}
+            aria-hidden="true"
+            className={`h-2.5 w-2.5 border-2 border-[var(--accent)] ${
+              isCompleted ? 'bg-[var(--accent)]' : isCurrent ? 'round-current' : ''
+            }`}
+          />
+        )
+      })}
+    </div>
+  )
+
+  const completionHeading =
+    mode === 'focus' ? 'FOCUS DONE.' : mode === 'long' ? 'LONG BREAK DONE.' : 'BREAK DONE.'
+  const completionPrompt =
+    mode === 'focus'
+      ? nextMode === 'long'
+        ? 'START LONG BREAK?'
+        : 'START BREAK?'
+      : 'BACK TO FOCUS?'
+
+  const presetsByMode = {
+    focus: [
+      { label: '15M', minutes: 15 },
+      { label: '25M', minutes: 25 },
+      { label: '45M', minutes: 45 },
+      { label: '1H', minutes: 0, hours: 1 }
+    ],
+    break: [
+      { label: '5M', minutes: 5 },
+      { label: '10M', minutes: 10 },
+      { label: '15M', minutes: 15 }
+    ],
+    long: [
+      { label: '15M', minutes: 15 },
+      { label: '20M', minutes: 20 },
+      { label: '30M', minutes: 30 }
+    ]
+  }
+
+  const elapsedPercent = Math.max(0, Math.min(100, 100 - progressPercent))
+  const isFinalTenSeconds = isActive && totalSeconds > 0 && totalSeconds <= 10
+  const focusMinutesToday = Math.floor(dailyStats.focusSeconds / 60)
+  const focusTimeToday =
+    dailyStats.focusSeconds < 60
+      ? `${dailyStats.focusSeconds}s`
+      : focusMinutesToday >= 60
+        ? `${Math.floor(focusMinutesToday / 60)}h ${focusMinutesToday % 60}m`
+        : `${focusMinutesToday}m`
+  const yesterday = getRecentDateKeys(dailyStats.date)[5]
+  const currentStreak =
+    dailyStats.lastFocusDate === dailyStats.date || dailyStats.lastFocusDate === yesterday
+      ? dailyStats.currentStreak
+      : 0
+  const weekRecords = getRecentDateKeys(dailyStats.date).map((date) => {
+    const record = dailyStats.history.find((entry) => entry.date === date)
+    const day = new Date(`${date}T12:00:00`).getDay()
+    return {
+      date,
+      dayLabel: ['S', 'M', 'T', 'W', 'T', 'F', 'S'][day],
+      focusMinutes: record ? record.focusSeconds / 60 : 0
+    }
+  })
+  const maxFocusMinutes = Math.max(0, ...weekRecords.map((record) => record.focusMinutes))
+
   useEffect(() => {
     const interval = setInterval(() => {
       setMicrocopyIndex((prev) => prev + 1)
@@ -444,6 +721,11 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   }, [])
 
   const handleStart = () => {
+    if (isAlarm && nextMode) {
+      beginPhase(nextMode)
+      return
+    }
+
     // Prime the audio on user gesture
     if (audioRef.current) {
       audioRef.current.load()
@@ -490,21 +772,33 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
   }
 
   const handleReset = () => {
+    clearTimeout(autoStartTimeoutRef.current)
+    autoStartTimeoutRef.current = null
     setIsActive(false)
     setIsAlarm(false)
+    setNextMode(null)
     setHasStarted(false)
     stopAlarmSound()
     setTotalSeconds(initialSeconds)
   }
 
   const handleOpenEdit = () => {
+    clearTimeout(autoStartTimeoutRef.current)
+    autoStartTimeoutRef.current = null
+    editingModeRef.current = mode
     setIsActive(false)
     setIsAlarm(false)
+    setNextMode(null)
     stopAlarmSound()
     setHours(Math.floor(totalSeconds / 3600))
     setMinutes(Math.floor((totalSeconds % 3600) / 60))
     setSeconds(totalSeconds % 60)
     setIsEditing(true)
+  }
+
+  const handleCancelEdit = () => {
+    setMode(editingModeRef.current)
+    setIsEditing(false)
   }
 
   const handleSaveEdit = (startImmediately = false) => {
@@ -514,6 +808,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       setInitialSeconds(total)
       setIsEditing(false)
       setIsAlarm(false)
+      setNextMode(null)
       stopAlarmSound()
       if (startImmediately) {
         setHasStarted(true)
@@ -522,7 +817,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     }
   }
 
-  const handleApplyPreset = (m, h = 0, s = 0) => {
+  const handleApplyPreset = (targetMode, m, h = 0, s = 0) => {
     if (audioRef.current) {
       audioRef.current.load()
     }
@@ -532,9 +827,10 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     const total = h * 3600 + m * 60 + s
     setTotalSeconds(total)
     setInitialSeconds(total)
-    setMode('focus')
+    setMode(targetMode)
     setIsEditing(false)
     setIsAlarm(false)
+    setNextMode(null)
     stopAlarmSound()
     setHasStarted(true)
     setIsActive(true)
@@ -542,34 +838,36 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
   const handleSetMode = (newMode) => {
     setMode(newMode)
-    if (newMode === 'focus') {
-      setMinutes(25)
-      setSeconds(0)
-      setHours(0)
-    } else if (newMode === 'break') {
-      setMinutes(5)
-      setSeconds(0)
-      setHours(0)
-    } else if (newMode === 'long') {
-      setMinutes(15)
-      setSeconds(0)
-      setHours(0)
-    }
+    const duration = MODE_DEFAULTS[newMode]
+    setHours(duration.hours)
+    setMinutes(duration.minutes)
+    setSeconds(duration.seconds)
   }
 
-  const handleDismissAlarm = () => {
+  const handleSkipNextPhase = () => {
+    clearTimeout(autoStartTimeoutRef.current)
+    autoStartTimeoutRef.current = null
     setIsAlarm(false)
+    if (nextMode === 'long') setCompletedSessions(0)
+    setNextMode(null)
     stopAlarmSound()
     setHasStarted(false)
-    setTotalSeconds(0)
+    setMode('focus')
+    setHours(MODE_DEFAULTS.focus.hours)
+    setMinutes(MODE_DEFAULTS.focus.minutes)
+    setSeconds(MODE_DEFAULTS.focus.seconds)
+    setTotalSeconds(25 * 60)
+    setInitialSeconds(25 * 60)
   }
 
-
-
   // ===== Circular Progress Ring SVG =====
-  const radius = 46
-  const circumference = 2 * Math.PI * radius
-  const remainingOffset = circumference - (progressPercent / 100) * circumference
+  const radius = 45
+  const strokeWidth = 2
+  const ringLength = 1000
+  const remainingOffset = Math.max(
+    0,
+    Math.min(ringLength, ringLength * (1 - progressPercent / 100))
+  )
 
   const renderProgressRing = () => {
     const ringState = isAlarm
@@ -583,25 +881,35 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
             : 'running'
     const isPausedRing = ringState === 'paused'
     const trackColor =
-      ringState === 'idle' ? '#ffffff' : ringState === 'alarm' ? '#ff4f00' : 'var(--track)'
-    const progressColor =
-      ringState === 'idle' || isPausedRing ? '#ffffff' : 'var(--accent)'
+      ringState === 'idle'
+        ? 'var(--text)'
+        : ringState === 'alarm'
+          ? 'var(--accent)'
+          : 'var(--track)'
+    const progressColor = ringState === 'idle' || isPausedRing ? 'var(--text)' : 'var(--accent)'
     const ringOffset =
-      ringState === 'idle' ? 0 : ringState === 'alarm' ? circumference : remainingOffset
-    const totalMinutes = Math.max(1, Math.round(initialSeconds / 60))
+      ringState === 'idle' ? 0 : ringState === 'alarm' ? ringLength : remainingOffset
+    const totalMinutes = Math.max(1, Math.ceil(initialSeconds / 60))
     const elapsedMinutes = Math.floor((initialSeconds - totalSeconds) / 60)
 
     const ticks = Array.from({ length: totalMinutes }, (_, i) => {
       const angle = (360 / totalMinutes) * i
       const isElapsed = i < elapsedMinutes
       const stateTickColor =
-        ringState === 'idle' ? '#ffffff' : ringState === 'alarm' ? '#ff4f00' : isPausedRing ? '#ffffff' : undefined
+        ringState === 'idle'
+          ? 'var(--text)'
+          : ringState === 'alarm'
+            ? 'var(--accent)'
+            : isPausedRing
+              ? 'var(--text)'
+              : undefined
+      const tickOpacity = isPausedRing ? 0.35 : isElapsed ? 0.12 : 1
       return (
         <line
           key={i}
           className={`tick ${isElapsed ? 'elapsed' : ''}`}
           stroke={stateTickColor}
-          strokeOpacity={isPausedRing ? 0.35 : undefined}
+          strokeOpacity={tickOpacity}
           x1="60"
           y1="2"
           x2="60"
@@ -618,30 +926,33 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
         data-ring-state={ringState}
         viewBox="0 0 120 120"
         preserveAspectRatio="xMidYMid meet"
+        shapeRendering="geometricPrecision"
         aria-hidden="true"
       >
         <circle
           cx="60"
           cy="60"
           r={radius}
+          pathLength={ringLength}
           fill="none"
           stroke={trackColor}
           strokeOpacity={isPausedRing ? 0.25 : 1}
-          strokeWidth="2.5"
-          className={ringState === 'alarm' ? 'finish-flash' : ''}
+          strokeWidth={strokeWidth}
+          className={`progress-track__circle ${ringState === 'alarm' ? 'completion-ring-pulse' : ''}`}
         />
         {ticks}
         <circle
           cx="60"
           cy="60"
           r={radius}
+          pathLength={ringLength}
           fill="none"
           stroke={progressColor}
           strokeOpacity={isPausedRing ? 0.5 : 1}
-          strokeWidth="2.5"
-          strokeDasharray={circumference}
+          strokeWidth={strokeWidth}
+          strokeDasharray={ringLength}
           strokeDashoffset={ringOffset}
-          strokeLinecap="butt"
+          strokeLinecap={progressPercent >= 100 ? 'butt' : 'round'}
           transform="rotate(-90 60 60)"
           className="progress-ring__circle"
           style={{ '--energy': energyLevel }}
@@ -659,72 +970,245 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
     </div>
   )
 
+  useEffect(() => {
+    const handleKeyDown = (event) => {
+      if (event.repeat || event.altKey || event.ctrlKey || event.metaKey) return
+      if (event.key === 'Escape' && (isShowingStats || isEditing)) {
+        event.preventDefault()
+        if (isShowingStats) {
+          setIsShowingStats(false)
+          requestAnimationFrame(() => statsTriggerRef.current?.focus())
+        } else {
+          handleCancelEdit()
+        }
+        return
+      }
+
+      const target = event.target
+      const isTextEntry =
+        target instanceof HTMLElement &&
+        (target.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(target.tagName))
+      if (isTextEntry) return
+
+      if (event.code === 'Space') {
+        if (target instanceof HTMLElement && target.tagName === 'BUTTON') return
+        event.preventDefault()
+        if (isActive) handlePause()
+        else handleStart()
+      } else if (event.key.toLowerCase() === 'r') {
+        event.preventDefault()
+        handleReset()
+      } else if (event.key.toLowerCase() === 'm') {
+        event.preventDefault()
+        onToggleMiniMode()
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => window.removeEventListener('keydown', handleKeyDown)
+  })
+
   return (
     <div
-      className="relative flex-1 min-h-0 flex flex-col justify-between border-x-2 border-black bg-[var(--panel)] px-3 py-1 pb-2.5 overflow-hidden"
+      className={`relative flex-1 min-h-0 flex flex-col justify-between border-x-2 border-black bg-[var(--panel)] overflow-hidden ${
+        isMiniMode ? 'mini-timer-panel px-2 pt-1 pb-2' : 'px-3 py-1 pb-2.5'
+      }`}
       data-mode={mode}
       data-state={
-        isEditing
-          ? 'edit'
-          : isAlarm
-            ? 'alarm'
-            : isUrgent
-              ? 'urgent'
-              : isActive
-                ? 'running'
-                : !hasStarted
-                  ? 'idle'
-                  : 'paused'
+        isFinalTenSeconds
+          ? 'final-ten'
+          : isEditing
+            ? 'edit'
+            : isAlarm
+              ? 'alarm'
+              : isUrgent
+                ? 'urgent'
+                : isActive
+                  ? 'running'
+                  : !hasStarted
+                    ? 'idle'
+                    : 'paused'
       }
     >
-      {isAlarm ? (
+      {isMiniMode ? (
+        <button
+          type="button"
+          onClick={isActive ? handlePause : handleStart}
+          aria-label={isActive ? 'Pause timer' : 'Start timer'}
+          aria-keyshortcuts="Space"
+          title="Click to play/pause"
+          data-tip="CLICK TO PLAY/PAUSE"
+          className="mini-timer flex-1 min-h-0 flex items-center justify-center gap-2 font-mono text-lg font-black text-[var(--accent)] cursor-pointer"
+        >
+          <span>{timeString}</span>
+          {isActive ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+        </button>
+      ) : isShowingStats ? (
+        <section
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="daily-stats-title"
+          className="flex-1 min-h-0 flex flex-col items-center justify-center gap-2 px-5"
+        >
+          <div className="flex items-center gap-2 text-[var(--accent)]">
+            <ChartNoAxesColumn className="h-5 w-5" aria-hidden="true" />
+            <h2
+              id="daily-stats-title"
+              className="font-mono text-sm font-black uppercase tracking-wider"
+            >
+              Today&apos;s Stats
+            </h2>
+          </div>
+          <dl className="grid w-full max-w-[280px] gap-1">
+            <div className="flex items-center justify-between border-2 border-white/50 bg-black px-3 py-1">
+              <dt className="font-mono text-[11px] font-bold text-white uppercase">
+                Focus sessions
+              </dt>
+              <dd className="font-mono text-sm font-black text-[var(--accent)]">
+                {dailyStats.sessions}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between border-2 border-white/50 bg-black px-3 py-1">
+              <dt className="font-mono text-[11px] font-bold text-white uppercase">Focus time</dt>
+              <dd className="font-mono text-sm font-black text-[var(--accent)]">
+                {focusTimeToday}
+              </dd>
+            </div>
+            <div className="flex items-center justify-between border-2 border-white/50 bg-black px-3 py-1">
+              <dt className="font-mono text-[11px] font-bold text-white uppercase">
+                Current streak
+              </dt>
+              <dd className="font-mono text-right text-xs font-black text-[var(--accent)]">
+                {currentStreak} {currentStreak === 1 ? 'day' : 'days'}
+              </dd>
+            </div>
+          </dl>
+          <div
+            className="w-full max-w-[280px]"
+            role="group"
+            aria-label="Focus minutes over the last seven days"
+          >
+            <p className="mb-1 text-center font-mono text-[9px] font-bold text-zinc-200 uppercase">
+              Focus minutes · last 7 days
+            </p>
+            <div className="flex h-[58px] items-end justify-between gap-2 border-b border-zinc-500 px-2">
+              {weekRecords.map((record) => {
+                const height =
+                  record.focusMinutes === 0
+                    ? 2
+                    : Math.max(4, (record.focusMinutes / maxFocusMinutes) * 38)
+                const minutes = Number(record.focusMinutes.toFixed(2))
+
+                return (
+                  <div
+                    key={record.date}
+                    className="flex h-full flex-1 flex-col items-center justify-end gap-1"
+                  >
+                    <div
+                      role="img"
+                      tabIndex={0}
+                      aria-label={`${record.date}: ${minutes} focus minutes`}
+                      title={`${record.date}: ${minutes} focus minutes`}
+                      data-tip={`${minutes} MINUTES`}
+                      className="w-full max-w-5 rounded-t-sm focus-visible:outline"
+                      style={{
+                        height: `${height}px`,
+                        backgroundColor:
+                          record.date === dailyStats.date
+                            ? 'var(--stats-today)'
+                            : 'var(--stats-history)'
+                      }}
+                    />
+                    <span aria-hidden="true" className="font-mono text-[9px] font-bold text-white">
+                      {record.dayLabel}
+                    </span>
+                  </div>
+                )
+              })}
+            </div>
+          </div>
+          <p className="font-mono text-[9px] font-bold text-zinc-200 uppercase">
+            Stats reset at local midnight.
+          </p>
+          <button
+            type="button"
+            autoFocus
+            onClick={() => {
+              setIsShowingStats(false)
+              requestAnimationFrame(() => statsTriggerRef.current?.focus())
+            }}
+            aria-label="Close daily stats"
+            data-tip="CLOSE STATS (ESC)"
+            className="btn flex items-center gap-1 border-2 border-white/70 bg-black px-3 py-1 text-[11px] font-bold text-white uppercase"
+          >
+            <ChevronLeft className="h-3.5 w-3.5" aria-hidden="true" />
+            Back
+          </button>
+        </section>
+      ) : isAlarm ? (
         // ===== ALARM ACTIVE STATE =====
         <div className="relative flex-1 min-h-0 flex items-center justify-center overflow-hidden">
           <div className="relative aspect-square h-[94%] max-h-full">
             {renderProgressRing()}
-            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-1 overflow-hidden">
+            <div className="absolute inset-0 z-10 flex flex-col items-center justify-center gap-2 overflow-hidden px-5">
               <div className="relative flex items-center justify-center">
-                <BellRing className="w-8 h-8 text-[#FF4F00] animate-bounce" />
-                <span className="absolute -inset-2 border-2 border-[#FF4F00] animate-ping" />
+                <BellRing className="w-6 h-6 text-[var(--accent)]" />
               </div>
-
-              <h2 className="border-x-4 border-[#FF4F00] px-3 text-2xl font-black text-white tracking-[0.2em] uppercase">
-                Time&apos;s Up!
-              </h2>
-
-              <p className="text-xs font-bold text-[#FF4F00] uppercase tracking-widest">
-                {getCurrentMicrocopy()}
+              <p className="w-full max-w-[220px] text-center font-mono text-xs font-black leading-relaxed text-white uppercase tracking-normal">
+                <span className="block">{completionHeading}</span>
+                <span className="block">{completionPrompt}</span>
               </p>
-
-              {renderSoundWave()}
-
-              <button
-                onClick={handleDismissAlarm}
-                className="btn accent-btn mt-0.5 shrink-0 border-2 border-black px-6 py-2 bg-[#FF4F00] text-black font-black text-sm uppercase tracking-widest cursor-pointer"
-              >
-                Dismiss Alarm
-              </button>
+              <div className="flex items-center gap-2">
+                {renderSessionSquares()}
+                <span className="font-mono text-[10px] font-black text-white uppercase tracking-wide">
+                  {dailyStats.sessions} FOCUS TODAY
+                </span>
+              </div>
+              <div className="flex items-center gap-3">
+                <button
+                  type="button"
+                  onClick={() => nextMode && beginPhase(nextMode)}
+                  aria-label={`Start ${nextMode === 'long' ? 'long break' : nextMode}`}
+                  className="btn accent-btn border-2 border-black px-3 py-1.5 bg-[var(--accent)] text-black font-mono text-[11px] font-black uppercase cursor-pointer"
+                >
+                  Start
+                </button>
+                <button
+                  type="button"
+                  onClick={handleSkipNextPhase}
+                  className="btn border-2 border-white/60 px-3 py-1.5 bg-black text-white font-mono text-[11px] font-black uppercase cursor-pointer"
+                >
+                  <SkipForward className="mr-1 inline h-3 w-3" />
+                  Skip
+                </button>
+              </div>
             </div>
           </div>
         </div>
       ) : isEditing ? (
         // ===== EDIT / SETUP MODE =====
-        <div className="flex-1 min-h-0 flex flex-col justify-center gap-2 overflow-hidden pt-0 pb-8">
+        <div className="flex-1 min-h-0 flex flex-col justify-center gap-1.5 overflow-hidden px-2">
           {/* Time Inputs */}
           <div className="flex items-start justify-center gap-1 shrink-0">
             <InputField label="hr" value={hours} onChange={setHours} max={99} />
-            <span className="flex h-12 items-center text-sm font-black leading-none text-[var(--accent)]" aria-hidden="true">
+            <span
+              className="flex h-12 items-center text-sm font-black leading-none text-[var(--accent)]"
+              aria-hidden="true"
+            >
               :
             </span>
             <InputField label="min" value={minutes} onChange={setMinutes} max={59} />
-            <span className="flex h-12 items-center text-sm font-black leading-none text-[var(--accent)]" aria-hidden="true">
+            <span
+              className="flex h-12 items-center text-sm font-black leading-none text-[var(--accent)]"
+              aria-hidden="true"
+            >
               :
             </span>
             <InputField label="sec" value={seconds} onChange={setSeconds} max={59} />
           </div>
 
           {/* Mode Buttons */}
-          <div className="flex items-center justify-center gap-1 shrink-0">
+          <div className="flex items-center justify-center gap-2 shrink-0">
             {[
               { label: 'FOCUS', mode: 'focus' },
               { label: 'BREAK', mode: 'break' },
@@ -734,10 +1218,11 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
                 key={modeBtn.mode}
                 type="button"
                 onClick={() => handleSetMode(modeBtn.mode)}
-                className={`btn border-2 border-black px-2 py-0.5 font-mono text-[9px] font-bold uppercase cursor-pointer ${
+                aria-pressed={mode === modeBtn.mode}
+                className={`mode-transition btn border-2 border-black px-3 py-1 font-mono text-[11px] font-black uppercase cursor-pointer ${
                   mode === modeBtn.mode
-                    ? 'bg-[var(--accent)] text-black'
-                    : 'bg-white text-black'
+                    ? 'mode-selected bg-[var(--accent)] text-black'
+                    : 'settings-chip bg-zinc-900 text-white'
                 }`}
               >
                 {modeBtn.label}
@@ -747,22 +1232,26 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
           {/* Preset Buttons */}
           <div className="flex items-center justify-center gap-1 shrink-0">
-            {[
-              { label: '5m', min: 5 },
-              { label: '15m', min: 15 },
-              { label: '25m', min: 25 },
-              { label: '45m', min: 45 },
-              { label: '1h', min: 0, hr: 1 }
-            ].map((preset) => (
-              <button
-                key={preset.label}
-                type="button"
-                onClick={() => handleApplyPreset(preset.min, preset.hr || 0)}
-                className="btn border-2 border-black px-2 py-0.5 bg-white text-black font-mono text-[9px] font-bold uppercase cursor-pointer"
-              >
-                {preset.label}
-              </button>
-            ))}
+            {presetsByMode[mode].map((preset) => {
+              const presetHours = preset.hours || 0
+              const total = presetHours * 3600 + preset.minutes * 60
+              const selected = total === hours * 3600 + minutes * 60 + seconds
+              return (
+                <button
+                  key={preset.label}
+                  type="button"
+                  onClick={() => handleApplyPreset(mode, preset.minutes, presetHours)}
+                  aria-pressed={selected}
+                  className={`mode-transition btn settings-chip border-2 px-2 py-0.5 font-mono text-[10px] font-bold uppercase cursor-pointer ${
+                    selected
+                      ? 'mode-selected bg-[var(--accent)] text-black'
+                      : 'bg-zinc-900 text-white'
+                  }`}
+                >
+                  {preset.label}
+                </button>
+              )
+            })}
           </div>
 
           {/* Sound Controls - Compact */}
@@ -770,8 +1259,12 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
             <div className="flex items-center justify-center gap-1">
               <button
                 onClick={handleChooseAlarmAudio}
+                aria-label={
+                  alarmAudio ? `Change alarm sound: ${alarmAudio.fileName}` : 'Choose alarm sound'
+                }
+                data-tip="CHOOSE ALARM SOUND"
                 disabled={isChoosingAudio}
-                className="btn flex items-center gap-1 border-2 border-black px-2 py-0.5 bg-white text-black font-mono text-[9px] font-bold uppercase cursor-pointer disabled:opacity-50"
+                className="mode-transition btn flex items-center gap-1 border-2 border-black px-2 py-0.5 bg-white text-black font-mono text-[11px] font-bold uppercase cursor-pointer disabled:opacity-50"
               >
                 {isChoosingAudio ? (
                   <span className="h-2.5 w-2.5 border-2 border-black border-r-[var(--accent)] animate-spin" />
@@ -787,6 +1280,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
                 <button
                   onClick={handleResetAlarmAudio}
                   aria-label="Reset to default alarm sound"
+                  data-tip="RESET ALARM SOUND"
                   className="btn flex items-center justify-center w-6 h-6 border-2 border-black bg-white text-black cursor-pointer"
                 >
                   <RotateCcw className="w-2.5 h-2.5" />
@@ -801,17 +1295,27 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
             )}
 
             {!audioError && (
-              <p className="font-mono text-[8px] font-bold text-zinc-500 uppercase tracking-wider">
+              <p className="font-mono text-[11px] font-bold leading-normal text-zinc-200 uppercase tracking-normal">
                 {alarmAudio ? `Sound: ${alarmAudio.fileName}` : 'Default alarm sound'}
               </p>
             )}
           </div>
 
+          <label className="flex items-center justify-center gap-2 font-mono text-[11px] font-bold leading-normal text-zinc-200 uppercase tracking-normal">
+            <input
+              type="checkbox"
+              checked={autoStartNext}
+              onChange={(event) => setAutoStartNext(event.target.checked)}
+              className="accent-[var(--accent)]"
+            />
+            Auto-start next phase
+          </label>
+
           {/* Action Buttons */}
           <div className="flex items-center justify-center gap-2 shrink-0">
             <button
-              onClick={() => setIsEditing(false)}
-              className="btn flex items-center gap-1 border-2 border-black px-3 py-0.5 bg-black text-white font-mono text-[9px] font-bold uppercase cursor-pointer"
+              onClick={handleCancelEdit}
+              className="btn flex items-center gap-1 border-2 border-white/60 px-3 py-0.5 bg-zinc-900 text-white font-mono text-[9px] font-bold uppercase cursor-pointer"
             >
               <X className="w-3 h-3" />
               Cancel
@@ -836,8 +1340,12 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
 
               <div className="absolute inset-0 z-10 flex flex-col items-center justify-center px-6">
                 <div
-                  className={`font-mono text-[1.7rem] font-black leading-none tracking-tight tabular-nums transition-all duration-300 ${
-                    isActive ? 'text-[var(--accent)]' : 'text-[var(--text)]'
+                  className={`timer-digits font-mono text-[2rem] font-black leading-none tracking-tight tabular-nums ${
+                    isActive
+                      ? 'text-[var(--accent)]'
+                      : hasStarted
+                        ? 'paused-digits text-[var(--text)]'
+                        : 'text-[var(--text)]'
                   } ${isGlitching ? 'glitch' : ''}`}
                 >
                   {timeString}
@@ -857,32 +1365,29 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
                 </span>
 
                 {/* Session Dots */}
-                <div className="mt-2 flex gap-1.5 justify-center">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div
-                      key={i}
-                      className={`w-2 h-2 border-2 ${
-                        i < completedSessions
-                          ? 'bg-[var(--accent)] border-[var(--accent)]'
-                          : 'border-[var(--accent)]'
-                      }`}
-                    />
-                  ))}
-                </div>
+                <div className="mt-2">{renderSessionSquares(mode === 'focus' && isActive)}</div>
 
-                {/* Streak Counter */}
-                {streak > 0 && (
-                  <div className="mt-1 flex items-center gap-1 text-[8px] font-mono font-bold text-zinc-500 uppercase tracking-wider">
-                    <Flame className="w-2.5 h-2.5 text-[var(--accent)]" />
-                    <span className="text-white">{streak}</span>
-                  </div>
-                )}
+                <button
+                  type="button"
+                  ref={statsTriggerRef}
+                  onClick={() => setIsShowingStats(true)}
+                  aria-label={`${dailyStats.sessions} focus ${
+                    dailyStats.sessions === 1 ? 'session' : 'sessions'
+                  } completed today. Open daily stats.`}
+                  data-tip={`${dailyStats.sessions} FOCUS SESSIONS TODAY · VIEW STATS`}
+                  title={`${dailyStats.sessions} focus sessions today. View daily stats.`}
+                  className="mt-1 flex items-center gap-1 font-mono font-bold uppercase tracking-wider text-white focus-visible:outline"
+                >
+                  <Flame className="h-3.5 w-3.5 text-[var(--accent)]" aria-hidden="true" />
+                  <span className="text-sm tabular-nums">{dailyStats.sessions}</span>
+                  <span className="text-[8px] text-zinc-300">FOCUS TODAY</span>
+                </button>
               </div>
             </div>
           </div>
 
           {/* Control Dock */}
-          <div className="mt-1 mb-1 grid w-full shrink-0 grid-cols-5 items-center justify-items-center px-2">
+          <div className="mt-1 mb-1 grid w-full shrink-0 grid-cols-4 items-center justify-items-center px-2">
             {/* Edit */}
             <button
               onClick={handleOpenEdit}
@@ -893,33 +1398,19 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
               <Sliders className="w-3.5 h-3.5" />
             </button>
 
-            {/* Sound */}
-            <button
-              onClick={handleChooseAlarmAudio}
-              aria-label={
-                alarmAudio ? `Change alarm sound: ${alarmAudio.fileName}` : 'Change alarm sound'
-              }
-              data-tip="MUSIC"
-              disabled={isChoosingAudio}
-              className={`btn flex h-8 w-8 items-center justify-center border-2 border-black bg-white text-black cursor-pointer disabled:opacity-50 ${
-                alarmAudio ? 'text-[var(--accent)]' : 'text-black'
-              }`}
-            >
-              {isChoosingAudio ? (
-                <span className="h-3.5 w-3.5 rounded-none border-2 border-black border-r-[var(--accent)] animate-spin" />
-              ) : (
-                <Music className="w-3.5 h-3.5" />
-              )}
-            </button>
-
             {/* Play / Pause Primary CTA */}
             <button
               onClick={isActive ? handlePause : handleStart}
               aria-label={isActive ? 'Pause' : 'Start'}
+              aria-keyshortcuts="Space"
               data-tip={isActive ? 'PAUSE' : 'START'}
               className="btn accent-btn flex h-11 w-11 items-center justify-center border-2 border-black bg-[var(--accent)] text-black cursor-pointer"
             >
-              <svg viewBox="0 0 24 24" className="w-5 h-5" data-state={isActive ? 'running' : 'paused'}>
+              <svg
+                viewBox="0 0 24 24"
+                className="w-5 h-5"
+                data-state={isActive ? 'running' : 'paused'}
+              >
                 <polygon className="tri" points="7,4 20,12 7,20" fill="currentColor" />
                 <rect className="bar l" x="6" y="4" width="4" height="16" fill="currentColor" />
                 <rect className="bar r" x="14" y="4" width="4" height="16" fill="currentColor" />
@@ -930,6 +1421,7 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
             <button
               onClick={handleReset}
               aria-label="Reset timer"
+              aria-keyshortcuts="R"
               data-tip="RESET"
               className="btn flex h-8 w-8 items-center justify-center border-2 border-black bg-white text-black cursor-pointer"
             >
@@ -940,7 +1432,8 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
             <button
               onClick={handleToggleMute}
               aria-label={isMuted ? 'Unmute alarm' : 'Mute alarm'}
-              data-tip={isMuted ? 'UNMUTE' : 'MUTE'}
+              data-tip={isMuted ? 'UNMUTE ALARM' : 'MUTE ALARM'}
+              title={isMuted ? 'Unmute alarm' : 'Mute alarm'}
               className={`btn flex h-8 w-8 items-center justify-center border-2 border-black bg-white text-black cursor-pointer ${
                 isMuted ? 'opacity-50' : ''
               }`}
@@ -952,12 +1445,19 @@ function Timer({ isActive, setIsActive, isAlarm, setIsAlarm }) {
       )}
 
       {/* Progress Track at bottom */}
-      <div className="absolute bottom-0 left-0 right-0 h-2 border-t-2 border-black bg-white/15 overflow-hidden">
+      <div
+        role="progressbar"
+        aria-label="Session progress"
+        aria-valuemin={0}
+        aria-valuemax={100}
+        aria-valuenow={Math.round(isAlarm ? 100 : elapsedPercent)}
+        className={`progress-bar-track absolute bottom-0 left-0 right-0 overflow-hidden ${
+          isMiniMode ? 'h-1' : 'h-[5px]'
+        }`}
+      >
         <div
-          className={`h-full transition-all duration-300 ${
-            isAlarm ? 'bg-[var(--accent)] animate-pulse' : isActive ? 'bg-[var(--accent)]' : 'bg-zinc-600'
-          }`}
-          style={{ width: `${Math.max(0, Math.min(100, progressPercent))}%` }}
+          className={`mini-progress h-full ${isAlarm ? 'animate-pulse' : ''}`}
+          style={{ width: `${isAlarm ? 100 : elapsedPercent}%` }}
         />
       </div>
     </div>

@@ -14,21 +14,23 @@ A brutalist Pomodoro timer for deep work. Sharp edges, hard shadows, mechanical 
   </a>
 </p>
 
-**Tempo** is a compact desktop timer that enforces the Pomodoro technique through a neo-brutalist interface designed to stay out of your way until you need it. No soft edges, no distractions—just a ticking clock and the discipline to sit with it.
+**Tempo** is a compact desktop timer for the Pomodoro workflow, with focus and break phases, completion prompts, and an optional auto-start setting. Its neo-brutalist interface is designed to stay out of your way until you need it. No soft edges, no distractions—just a ticking clock and the discipline to sit with it.
 
 ## Download
 
 Get the latest release from [GitHub Releases](https://github.com/Siikerloyd/Tempo/releases/latest).
 
-- **Windows**: `Tempo-1.0.0-setup.exe`
-- **macOS**: `Tempo-1.0.0.dmg`
-- **Linux**: `Tempo-1.0.0.AppImage` or `tempo_1.0.0_amd64.deb`
+- **Windows**: Windows installer
+- **macOS**: DMG disk image
+- **Linux**: AppImage or Debian package (`.deb`)
+
+Download filenames include the app version and may change between releases.
 
 ---
 
 ## The Workflow
 
-Tempo implements the classic Pomodoro technique with automatic mode switching:
+Tempo follows a four-focus-session cycle. At the end of each phase it sounds an alarm and offers the next phase; you can start it or skip it. If **Auto-start next phase** is enabled, Tempo starts the suggested phase automatically.
 
 ```
 FOCUS (25m) → BREAK (5m) → FOCUS (25m) → BREAK (5m) → FOCUS (25m) → BREAK (5m) → FOCUS (25m) → LONG (15m) → repeat
@@ -36,51 +38,69 @@ FOCUS (25m) → BREAK (5m) → FOCUS (25m) → BREAK (5m) → FOCUS (25m) → BR
 
 - **Focus**: Your deep work session. Orange ring, orange glow, attitude: "IN THE ZONE"
 - **Break**: Short rest. Teal ring, attitude: "RECHARGE"
-- **Long**: Extended rest after 4 focus sessions. White ring, attitude: "DEEP REST"
+- **Long**: Extended rest after 4 focus sessions. Violet ring, attitude: "DEEP REST"
 
-The 4-dot session cycle tracks your progress. Complete all 4 → earn a long break.
+The four-square session cycle is saved across launches. A square fills only when a Focus timer reaches zero; resetting before it finishes does not count. Breaks do not fill squares. After four completed Focus sessions, Tempo suggests a Long Break. The cycle resets when that Long Break finishes or is skipped.
 
 ---
 
 ## Features
 
 **Timer Engine**
-- Circular progress ring with 60-120 tick marks that drain as time passes
-- Rolling digit animations on every second change
-- Final-minute heartbeat pulse when time is running low
-- Progress bar at the bottom shows remaining percentage
+
+- Circular progress ring with time markers that fade as time passes
+- Compact tabular timer digits with hours shown only for durations of one hour or more
+- Urgent animation during the final minute and a subtle pulse during the final 10 seconds
+- Circular progress ring and bottom progress bar show elapsed session progress
 - Energy glow intensifies as the session progresses
 
 **Pomodoro System**
+
 - Three modes: Focus (25m), Break (5m), Long (15m)
-- Automatic mode switching on completion
-- Session dots track the 4-cycle Pomodoro pattern
-- Daily streak counter with flame icon (persists across launches)
-- Mode-based color palette shifts (orange → teal → white)
+- Completion prompts name the phase that ended and offer the suggested next phase; auto-start is optional
+- Session squares track completed and upcoming Focus rounds in the persisted 4-session cycle
+- Daily stats show completed Focus sessions and focus time for today, the current consecutive-day streak, and a 7-day focus-time chart
+- Daily totals roll over at local midnight; stats history is kept for the last seven local calendar days
+- Mode-based color palette shifts (orange → teal → violet)
 
 **Visual Personality**
-- Rotating microcopy by state: "LOCKED IN." "BREATHE." "FINISH STRONG." "DONE. NICE."
+
+- State microcopy for idle, paused, running, urgent, and alarm states
 - Glitch effects on start, pause, and finish (chromatic aberration bursts)
 - Play/pause icon morph (triangle ↔ bars) with smooth transition
-- Subtle grid texture overlay on black background
 - Sound wave animation when alarm is active
 
 **Controls**
-- Presets: 5m, 15m, 25m, 45m, 1h (instant start)
+
+- Mode-specific presets (Focus: 15m, 25m, 45m, 1h; Break: 5m, 10m, 15m; Long: 15m, 20m, 30m)
 - Custom duration: hours / minutes / seconds input
-- Always-on-top pin, minimize, close in custom title bar
+- Always-on-top pin, minimize, and close controls in the custom title bar
+- Mini mode resizes the window to 200×88 and shows the timer with a progress bar; click the time to play or pause
+- Fixed, non-resizable window: 450×370 in normal mode
+- Remaining time and mode appear in the app/window title
+- Keyboard shortcuts: Space to play/pause, R to reset, M to toggle mini mode, Esc to close Settings or Stats
 - Brutalist button hover states (offset shadow lift)
 - Press-into-shadow active feedback
 - Custom alarm sound picker (saved to disk)
 - Mute toggle with confirmation chirp
 - Synthesized alarm fallback if MP3 fails
+- Daily Stats can be opened from the Focus Today counter
 
 **Technical**
+
 - Single-instance app (second launch focuses existing window)
-- Audio throttling when timer is paused
-- `prefers-reduced-motion` support (disables glitch, pulse, roll)
-- localStorage for streak and alarm sound persistence
+- Timer title updates with the remaining time and current phase
+- `prefers-reduced-motion` disables decorative animations
+- Cycle progress, daily stats, auto-start preference, and mini-mode preference are saved locally
+- Custom alarm sound choice is saved in the app's user-data folder
+- Timer mode and remaining time are not restored on relaunch; a new launch starts at the default Focus time
 - Custom 512x512 desktop icon matching the timer design
+
+---
+
+## Automated Releases
+
+The GitHub Actions release workflow builds Windows, macOS, and Linux packages on their respective runners. Push a version tag such as `v1.0.0` to trigger a release build; the workflow publishes the generated packages to GitHub Releases. You can also start the workflow manually from the repository's **Actions** tab.
 
 ---
 
@@ -88,22 +108,21 @@ The 4-dot session cycle tracks your progress. Complete all 4 → earn a long bre
 
 **Neo-Brutalist Aesthetic**
 
-Every element follows three rules: hard edges, hard shadows, hard contrast.
+The interface uses hard edges, hard shadows, and high contrast as its visual foundation.
 
-- **Borders**: 2px solid black, never rounded
-- **Shadows**: 4px offset white, no blur
-- **Transitions**: `steps(2, end)`—mechanical, not smooth
+- **Borders**: Strong, high-contrast outlines
+- **Shadows**: Hard offset shadows, without blur
+- **Transitions**: A mix of crisp button feedback and smooth timer, progress, and theme transitions
 - **Typography**: Monospace tabular numbers, uppercase labels, wide tracking
 - **Colors**: Black (`#000`), White (`#FFF`), Orange (`#FF4F00`), plus mode accents
 
 **Mode Palette**
 
-| Mode | Accent | Dim | Track | Attitude |
-| --- | --- | --- | --- | --- |
-| Focus | `#FF4F00` | `#7A2600` | `#2A1A12` | "IN THE ZONE" |
-| Break | `#00E5C7` | `#00574C` | `#0B2A26` | "RECHARGE" |
-| Long | `#FFFFFF` | `#666666` | `#222222` | "DEEP REST" |
-| Paused | — | `#6B4A3A` | — | "PAUSED" |
+| Mode  | Accent    | Track     | Attitude      |
+| ----- | --------- | --------- | ------------- |
+| Focus | `#FF4F00` | `#2A1A12` | "IN THE ZONE" |
+| Break | `#00E5C7` | `#0B2A26` | "RECHARGE"    |
+| Long  | `#A78BFA` | `#2E1D4D` | "DEEP REST"   |
 
 **Typography**
 
@@ -113,14 +132,14 @@ Every element follows three rules: hard edges, hard shadows, hard contrast.
 
 **States**
 
-| State | Ring | Color | Microcopy |
-| --- | --- | --- | --- |
-| Idle | Full | White | "READY WHEN YOU ARE." |
-| Paused | Dimmed | White | "PAUSED" / "HOLDING." |
-| Running | Draining | Orange/Teal/White | "IN THE ZONE" / "RECHARGE" |
-| Urgent (≤60s) | Pulsing | Accent | "ALMOST." |
-| Alarm | Empty | Orange | "DONE. NICE." |
-| Edit | Hidden | — | — |
+| State         | Ring     | Color               | Microcopy                                       |
+| ------------- | -------- | ------------------- | ----------------------------------------------- |
+| Idle          | Full     | White               | "READY"                                         |
+| Paused        | Dimmed   | White               | "PAUSED" / "HOLDING."                           |
+| Running       | Draining | Orange/Teal/Violet  | "IN THE ZONE" / "RECHARGE" / "DEEP REST"        |
+| Urgent (≤60s) | Pulsing  | Accent              | "ALMOST."                                       |
+| Alarm         | Empty    | Current mode accent | Phase-specific completion and next-phase prompt |
+| Edit          | Hidden   | —                   | —                                               |
 
 ---
 
@@ -192,7 +211,7 @@ src/
 └── renderer/
     ├── src/
     │   ├── components/
-    │   │   ├── Timer.jsx       # Main timer with modes, streak, effects
+    │   │   ├── Timer.jsx       # Main timer with modes, daily stats, effects
     │   │   ├── TopBar.jsx      # Title bar with pin/minimize/close
     │   │   └── inputField.jsx  # Time input component
     │   ├── assets/
@@ -212,6 +231,7 @@ resources/          Window icon (.png)
 ## Acknowledgments
 
 Built with using:
+
 - Electron for desktop packaging
 - React for component logic
 - Tailwind CSS for utility styling

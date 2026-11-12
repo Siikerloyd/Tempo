@@ -87,12 +87,13 @@ function createWindow() {
 
   // Create the browser window.
   mainWindow = new BrowserWindow({
-    width: 360,
-    height: 300,
-    minWidth: 300,
-    minHeight: 260,
-    maxWidth: 800,
-    maxHeight: 600,
+    width: 450,
+    height: 370,
+    minWidth: 450,
+    minHeight: 370,
+    maxWidth: 450,
+    maxHeight: 370,
+    resizable: false,
     show: false,
     frame: false,
     transparent: false,
@@ -236,6 +237,20 @@ if (!gotTheLock) {
         return newState
       }
       return true
+    })
+
+    ipcMain.on('set-mini-mode', (_event, isMiniMode) => {
+      if (!mainWindow || mainWindow.isDestroyed()) return
+
+      const size = isMiniMode ? { width: 200, height: 88 } : { width: 450, height: 370 }
+      mainWindow.setMinimumSize(size.width, size.height)
+      mainWindow.setMaximumSize(size.width, size.height)
+      mainWindow.setSize(size.width, size.height)
+    })
+
+    ipcMain.on('set-timer-title', (event, title) => {
+      if (!mainWindow || mainWindow.isDestroyed() || event.sender !== mainWindow.webContents) return
+      mainWindow.setTitle(typeof title === 'string' ? title.slice(0, 80) : 'Tempo')
     })
 
     ipcMain.on('set-background-throttling', (_event, shouldThrottle) => {

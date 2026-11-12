@@ -6,6 +6,8 @@ const api = {
   chooseAlarmAudio: () => ipcRenderer.invoke('choose-alarm-audio'),
   getAlarmAudio: () => ipcRenderer.invoke('get-alarm-audio'),
   resetAlarmAudio: () => ipcRenderer.invoke('reset-alarm-audio'),
+  setMiniMode: (isMiniMode) => ipcRenderer.send('set-mini-mode', isMiniMode),
+  setTimerTitle: (title) => ipcRenderer.send('set-timer-title', title),
   setBackgroundThrottling: (shouldThrottle) =>
     ipcRenderer.send('set-background-throttling', shouldThrottle)
 }
